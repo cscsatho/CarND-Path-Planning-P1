@@ -183,18 +183,15 @@ static int GetLaneScore(const vector<vector<float>>& sensor_fusion, const int ch
 
   for (int i = 0; i < sensor_fusion.size(); ++i)
   {
-    cout << "sensor_fusion[" << i << "]: d=" << sensor_fusion[i][6] << " s=" << sensor_fusion[i][5];
     const float d = sensor_fusion[i][6];
     if (d > get_lane_center(check_lane_no) + 2 || d < get_lane_center(check_lane_no) - 2)
     {
-      cout << endl;
       continue; // given car is not in the examined lane
     }
 
     const double check_speed = sqrt(sensor_fusion[i][3]*sensor_fusion[i][3] + sensor_fusion[i][4]*sensor_fusion[i][4]);
     // s projected to last trajectory's endpoint
     const double check_car_s = sensor_fusion[i][5] + double(prev_sz) * TIME_INCR * check_speed;
-    cout << " s_future=" << check_car_s;
 
     if (fabs(sensor_fusion[i][5] - car_s) < TARGET_HORIZONT * 0.2)
     { // car is in line with us
@@ -209,7 +206,6 @@ static int GetLaneScore(const vector<vector<float>>& sensor_fusion, const int ch
         check_car_s_front = check_car_s;
         check_speed_front = check_speed;
         i_front = i;
-        cout << " i_f=" << i;
       }
     }
     else // if (check_car_s < car_s)
@@ -219,11 +215,9 @@ static int GetLaneScore(const vector<vector<float>>& sensor_fusion, const int ch
         check_car_s_behind = check_car_s;
         check_speed_behind = check_speed;
         i_behind = i;
-        cout << " i_b=" << i;
       }
     }
 
-    cout << endl;
   }
 
   int score_s = 0;
@@ -235,11 +229,11 @@ static int GetLaneScore(const vector<vector<float>>& sensor_fusion, const int ch
   {
     score_s = REJECT * 2;
     collision_warning = true;
-    printf("GetLaneScore(%d|%03d):  {I} *TOO_CLOSE*\n", check_lane_no, (int)sensor_fusion[i_inline][0]);
+    //printf("GetLaneScore(%d|%03d):  {I} *TOO_CLOSE*\n", check_lane_no, (int)sensor_fusion[i_inline][0]);
   }
   else
   {
-    printf("GetLaneScore(%d|N/A):  {I}\n", check_lane_no);
+    //printf("GetLaneScore(%d|N/A):  {I}\n", check_lane_no);
   }
 
   if (i_front >= 0)
@@ -250,21 +244,25 @@ static int GetLaneScore(const vector<vector<float>>& sensor_fusion, const int ch
       collision_warning = true;
     }
     else
+    {
       score_s = int(check_car_s_front - car_s);
+      if (check_lane_no == curr_lane_no && score_s > TARGET_HORIZONT * 3)
+        score_s = 10000; // prefer the actual lane
+    }
 
     score_v = int(10 * check_speed_front);
 
     if (car_v > 1)
-      score_t = int((check_car_s_front - car_s) / car_v * 100);
+      score_t = int((check_car_s_front - car_s) / car_v * 10);
     else
-      score_t = 10000;
-    printf("GetLaneScore(%d|%03d):  {F}  s=%8d  |  v=%8d  |  t=%8d\n", check_lane_no, (int)sensor_fusion[i_front][0], score_s, score_v, score_t);
+      score_t = 1000;
+    //printf("GetLaneScore(%d|%03d):  {F}  s=%8d  |  v=%8d  |  t=%8d\n", check_lane_no, (int)sensor_fusion[i_front][0], score_s, score_v, score_t);
     sum += score_s + score_v + score_t;
   }
   else
   {
-    printf("GetLaneScore(%d|N/A):  {F}  10000\n", check_lane_no);
-    sum += 20000;
+    //printf("GetLaneScore(%d|N/A):  {F}  10000\n", check_lane_no);
+    sum += 2000;
   }
 
   if (i_behind >= 0)
@@ -277,13 +275,13 @@ static int GetLaneScore(const vector<vector<float>>& sensor_fusion, const int ch
     score_t = 0;
 
     score_v = int(MAX_REFERENCE_SPEED + car_v - check_speed_behind);
-    printf("GetLaneScore(%d|%03d):  {B}  s=%8d  |  v=%8d  |  t=%8d\n", check_lane_no, (int)sensor_fusion[i_behind][0], score_s, score_v, score_t);
+    //printf("GetLaneScore(%d|%03d):  {B}  s=%8d  |  v=%8d  |  t=%8d\n", check_lane_no, (int)sensor_fusion[i_behind][0], score_s, score_v, score_t);
     sum += score_s + score_v + score_t;
   }
   else
   {
-    printf("GetLaneScore(%d|N/A):  {B}  10000\n", check_lane_no);
-    sum += 5000;
+    //printf("GetLaneScore(%d|N/A):  {B}  10000\n", check_lane_no);
+    sum += 500;
   }
 
   // check feasibility
@@ -293,7 +291,7 @@ static int GetLaneScore(const vector<vector<float>>& sensor_fusion, const int ch
   if (collision_warning && check_lane_no == curr_lane_no)
     too_close = true; // it is in our lane, we must react
 
-  printf("GetLaneScore(%d|SUM): {%8d} %s\n", check_lane_no, sum, collision_warning ? "*COLL*" : "");
+  //printf("GetLaneScore(%d|SUM): {%8d} %s\n", check_lane_no, sum, collision_warning ? "*COLL*" : "");
   return sum;
 }
 
@@ -340,7 +338,6 @@ int main()
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     //auto sdata = string(data).substr(0, length);
-    //cout << sdata << endl;
     if (length && length > 2 && data[0] == '4' && data[1] == '2')
     {
       auto s = HasData(data);
@@ -353,7 +350,6 @@ int main()
         
         if (event == "telemetry")
         {
-            cout << "---" << endl;
           // j[1] is the data JSON object
           
         	// Main car's localization Data
@@ -383,72 +379,27 @@ int main()
               car_s = end_path_s;
 
             bool not_in_lane = car_d > get_lane_center(lane_no) + 0.4 || car_d < get_lane_center(lane_no) - 0.4;
-            cout << "car_s=" << car_s << " car_d=" << car_d << " lane_min=" << get_lane_center(lane_no) - 2 << " lane_max=" << get_lane_center(lane_no) + 2 << endl;
 
             vector<int> lane_scores(3, 0);
             for (int i = 0; i < 3; ++i)
               lane_scores[i] = GetLaneScore(sensor_fusion, /* check_lane_no */ i, /* curr_lane_no */ lane_no, car_s, mph2mps(car_speed), prev_sz, too_close);
 
-            if (not_in_lane)
-            {  // may not change lane
-              cout << "lane: " << lane_no << "(" << lane_scores[lane_no] << ") too_close=" << too_close << endl;
-            }
-            else
+            if (!not_in_lane)
             { // may proceed with lane change when applicable
               vector<int>::iterator it_best_score = max_element(begin(lane_scores), end(lane_scores));
               // new score must be greater than zero and must be at least a 5% improvement over the current one
               int new_lane = *it_best_score > 0 && *it_best_score / (float)lane_scores[lane_no] > MIN_SCORE_DIFF ? distance(begin(lane_scores), it_best_score) : lane_no;
-              cout << "best_score=" << *it_best_score << " curr_score=" << lane_scores[lane_no] << " change=" << *it_best_score / (float)lane_scores[lane_no] << endl;
-              cout << "lane: " << lane_no << "(" << lane_scores[lane_no] << ") --> " << new_lane << "(" << lane_scores[new_lane] << ")  too_close=" << too_close << endl;
-              lane_no = new_lane;
-            }
-
-#if 0
-            // finding a reference vehicle to follow
-            for (int i = 0; i < sensor_fusion.size(); ++i)
-            {
-              float d = sensor_fusion[i][6];
-              if (d < get_lane_center(lane_no) + 2 && d > get_lane_center(lane_no) - 2)
-              {
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double check_speed = sqrt(vx*vx + vy*vy);
-                double check_car_s = sensor_fusion[i][5];
-
-                check_car_s += double(prev_sz) * TIME_INCR * check_speed;
-
-                if ((check_car_s > car_s) && (check_car_s - car_s < TARGET_HORIZONT))
-                { // we might collide, handle case here
-
-                  // lower reference speed later
-                  too_close = true;
-
-                  //// change lane - FIXME
-                  //if (lane_no > 0)
-                  //  lane_no = 0;
-
-                }
+              if (lane_no != new_lane)
+              { // lane change
+                printf("lane change: %d(%d) -> %d(%d)\n", lane_no, lane_scores[lane_no], new_lane, *it_best_score);
+                lane_no = new_lane;
               }
             }
-#endif
-
-//            if (too_close)
-//            {
-//              ref_speed -= mps2mph(5.0) * TIME_INCR; // 5 m/s -> 11.1846815 mph -> projected to 0.02 secs
-//              std::cout << "Braking " << ref_speed << std::endl;
-//            }
-//            else if (ref_speed < MAX_REFERENCE_SPEED)
-//            {
-//              ref_speed += mps2mph(5.0) * TIME_INCR;
-//              std::cout << "Acceleraing " << ref_speed << std::endl;
-//            }
 
             double ref_x = car_x;
             double ref_y = car_y;
             double ref_yaw = deg2rad(car_yaw);
-//            std::cout << "car_x=" << car_x << " car_y=" << car_y << " car_yaw=" << car_yaw << " ppsz=" << prev_sz << std::endl;
 
-//            std::cout << "previous_path_x.size()=" << previous_path_x.size() << std::endl;
           	vector<double> ptsx;
           	vector<double> ptsy;
             if (prev_sz < 2)
@@ -470,22 +421,11 @@ int main()
               double prev_ref_y = previous_path_y[prev_sz - 2];
               ref_yaw = atan2(ref_y - prev_ref_y, ref_x - prev_ref_x);
 
-              //double d1 = Distance(previous_path_x[prev_sz - 3], previous_path_y[prev_sz - 3], prev_ref_x, prev_ref_y);
-              //double d2 = Distance(prev_ref_x, prev_ref_y, ref_x, ref_y);
-              //ref_speed_delta = mps2mph(d2 - d1) / TIME_INCR;
-//              cout << "d1=" << mps2mph(d1) << " d2=" << mps2mph(d2) << endl;
-
               ptsx.push_back(prev_ref_x);
               ptsy.push_back(prev_ref_y);
-//              if (ref_x > prev_ref_x)
-//              {
               ptsx.push_back(ref_x);
               ptsy.push_back(ref_y);
-//              }
-//              else
-//                printf("Warning: ref_x=%.2f is not greater than prev_ref_x=%.2f\n", ref_x, prev_ref_x);
             }
-//            std::cout << "ref_yaw=" << rad2deg(ref_yaw) << std::endl;
 
             { // local variable scoping
               vector<double> next_wp0 = getXY(car_s + 1 * TARGET_HORIZONT, get_lane_center(lane_no), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -500,11 +440,6 @@ int main()
               ptsy.push_back(next_wp2[1]); 
             }
 
-//            for (int i = 0; i < ptsx.size(); ++i)
-//            { // FIXME
-//              std::cout << "orig " << i << ": x=" << ptsx[i] << ", y=" << ptsy[i] << std::endl;
-//            }
-
             // transforming coordinates into the car's local coordinate system
             for (int i = 0; i < ptsx.size(); ++i)
             {
@@ -517,20 +452,10 @@ int main()
               if (i > 0 && ptsx[i] <= ptsx[i-1])
               {
                 printf("Warning: ptsx[%d]=%.2f is not greater than ptsx[%d]=%.2f\n", i, ptsx[i], i-1, ptsx[i-1]);
-                ptsx.pop_back();
-                ptsy.pop_back();
+                ptsx.erase(ptsx.begin() + i);
+                ptsy.erase(ptsy.begin() + i);
                 --i;
               }
-            }
-
-            for (int i = 0; i < ptsx.size(); ++i)
-            { // FIXME
-              std::cout << "conv " << i << ": x=" << ptsx[i] << ", y=" << ptsy[i] << std::endl;
-              double x_point = ptsx[i] * cos(ref_yaw) - ptsy[i] * sin(ref_yaw) + ref_x;
-              double y_point = ptsx[i] * sin(ref_yaw) + ptsy[i] * cos(ref_yaw) + ref_y;
-              std::cout << "!!!! " << i << ": x=" << x_point << ", y=" << y_point << std::endl;
-              std::cout << ptsx[i] << " * " << cos(ref_yaw) << " - " << ptsy[i] << " * " << sin(ref_yaw) << " + " << ref_x << std::endl;
-              std::cout << ptsx[i] << " * " << sin(ref_yaw) << " + " << ptsy[i] << " * " << cos(ref_yaw) << " + " << ref_y << std::endl;
             }
 
             tk::spline s;
@@ -545,45 +470,6 @@ int main()
               next_y_vals.push_back(previous_path_y[i]);
             }
 
-#if 0
-            const double target_x = TARGET_HORIZONT; // target horizon in meters
-            const double target_dist = Distance(0, 0, target_x, s(target_x));
-
-            const double N = target_dist / (mph2mps(ref_speed) * TIME_INCR);
-
-            for (int i = 1; i <= STEPS - prev_sz; ++i)
-            {
-              double x_point = i * target_x / N;
-              double y_point = s(x_point);
-//              std::cout << "     spline(" << x_point << ") = " << y_point << std::endl;
-
-              // handle acc/dec here - adjust ref_speed
-//              if (too_close && ref_speed > 0.0)
-//              {
-//                ref_speed -= mps2mph(8.5) * TIME_INCR; // 5 m/s -> 11.1846815 mph -> projected to 0.02 secs
-//                if (ref_speed < 0.0) ref_speed = 0.0;
-//                std::cout << "Braking " << ref_speed << std::endl;
-//              }
-//              else if (ref_speed < MAX_REFERENCE_SPEED)
-//              {
-//                ref_speed += mps2mph(8.5) * TIME_INCR;
-//                std::cout << "Acceleraing " << ref_speed << std::endl;
-//              }
-
-              //double x_ref = x_point;
-              //double y_ref = y_point;
-
-              // transforming back to the global coordinate system
-//              std::cout << x_point << " * " << cos(ref_yaw) << " - " << y_point << " * " << sin(ref_yaw) << " + " << ref_x << std::endl;
-//              std::cout << x_point << " * " << sin(ref_yaw) << " + " << y_point << " * " << cos(ref_yaw) << " + " << ref_y << std::endl;
-//              x_point = x_point * cos(ref_yaw) - y_point * sin(ref_yaw) + ref_x;
-//              y_point = x_point * sin(ref_yaw) + y_point * cos(ref_yaw) + ref_y;
-//              std::cout << "conv spline(" << x_point << ") = " << y_point << std::endl;
-
-              next_x_vals.push_back(x_point * cos(ref_yaw) - y_point * sin(ref_yaw) + ref_x);
-              next_y_vals.push_back(x_point * sin(ref_yaw) + y_point * cos(ref_yaw) + ref_y);
-            }
-#endif
             const double target_x = TARGET_HORIZONT; // target horizon in meters
             const double target_dist_ratio = Distance(0., 0., target_x, s(target_x)) / target_x;
             double ref_speed_delta_new = 0.;
@@ -606,27 +492,21 @@ int main()
 
                 ref_speed_delta_new = (i_adjusted * TIME_INCR) * (i_adjusted * TIME_INCR) * 0.5 * mps2mph(ACC_MAX) / target_dist_ratio;
                 if (ref_speed_delta_new > mps2mph(ACC_MAX) * TIME_INCR) ref_speed_delta_new = mps2mph(ACC_MAX) * TIME_INCR;
-//                ref_speed_delta_new *= action;
-//                ref_speed += ref_speed_delta_new;
 
                 if (action < 0)
                 {
-//                  std::cout << "BRK[" << i << "] rsd0=" << ref_speed_delta;
                   if (ref_speed_delta > 0.) // previous action was acceleration
                   {
                     ref_speed_delta_new = 0.;
                     ref_speed_delta_i = 1;
-//                    cout << " {0}";
                   }
                   else if (ref_speed_delta_new + mps2mph(SPEED_TOLERANCE) < -ref_speed_delta) // large decceleration difference from last state
                   {
                     ref_speed_delta_new = ref_speed_delta;
-//                    cout << " {1}";
                   }
                   else
                   {
                     ref_speed_delta_new = -ref_speed_delta_new;
-//                    cout << " {2}";
                   }
                   ref_speed += ref_speed_delta_new;
                   if (ref_speed_delta < 0. && -ref_speed_delta < mps2mph(ACC_MAX) * TIME_INCR) ++ref_speed_delta_i;
@@ -637,25 +517,20 @@ int main()
                   }
                   else
                     ref_speed_delta = ref_speed_delta_new;
-//                  std::cout << " rsd=" << ref_speed_delta_new << " v=" << ref_speed << std::endl;
                 }
                 else // if (action > 0)
                 {
-//                  std::cout << "ACC[" << i << "] rsd0=" << ref_speed_delta;
                   if (ref_speed_delta < 0.) // previous action was decceleration
                   {
                     ref_speed_delta_new = 0.;
                     ref_speed_delta_i = 1;
-//                    cout << " {0}";
                   }
                   else if (ref_speed_delta_new + mps2mph(SPEED_TOLERANCE) < ref_speed_delta) // large acceleration difference from last state
                   {
                     ref_speed_delta_new = ref_speed_delta;
-//                    cout << " {1}";
                   }
                   else
                   {
-//                    cout << " {2}";
                   }
                   ref_speed += ref_speed_delta_new;
                   if (ref_speed_delta > 0. && ref_speed_delta < mps2mph(ACC_MAX) * TIME_INCR) ++ref_speed_delta_i;
@@ -666,7 +541,6 @@ int main()
                   }
                   else
                     ref_speed_delta = ref_speed_delta_new;
-//                  std::cout << " rsd=" << ref_speed_delta_new << " v=" << ref_speed << std::endl;
                 }
               }
 
@@ -675,35 +549,11 @@ int main()
 
               next_x_vals.push_back(x_point * cos(ref_yaw) - y_point * sin(ref_yaw) + ref_x);
               next_y_vals.push_back(x_point * sin(ref_yaw) + y_point * cos(ref_yaw) + ref_y);
-//              cout << "ADD " << next_x_vals.back() << "," << next_y_vals.back() << endl;
 
               if (x_point >= target_x) break;
             }
 
-/*
-          	vector<double> next_x_vals;
-          	vector<double> next_y_vals;
-
-            const double dist_inc = mph2mps(ref_speed) * TIME_INCR;
-            const int lane_no = 1;
-            for (int i = 0; i < STEPS; ++i)
-            {
-              double next_s = car_s + (i + 1) * dist_inc;
-              double next_d = 2 + 4 * lane_no;
-              vector<double> next_xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-              next_x_vals.push_back(next_xy[0]);
-              next_y_vals.push_back(next_xy[1]);
-              //next_x_vals.push_back(car_x + i * dist_inc * cos(deg2rad(car_yaw)));
-              //next_y_vals.push_back(car_y + i * dist_inc * sin(deg2rad(car_yaw)));
-            }
-*/
-
-//            for (int i = 0; i < next_x_vals.size(); ++i)
-//            { // FIXME
-//              std::cout << "new path " << i << ": x=" << next_x_vals[i] << ", y=" << next_y_vals[i] << std::endl;
-//            }
-
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+          	// define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
@@ -741,6 +591,10 @@ int main()
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req)
   {
     std::cout << "Connected!!!" << std::endl;
+    ref_speed = 0.0; // start at zero
+    ref_speed_delta = 0.0;
+    ref_speed_delta_i = 1;
+    lane_no = 1;
   }
   );
 
